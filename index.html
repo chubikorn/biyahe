@@ -627,6 +627,21 @@
   .sheet.flash-mode .result-stamp,
   .sheet.flash-mode .answers,
   .sheet.flash-mode .hint { display: none; }
+  .flash-count {
+    display: none;
+    justify-content: space-between;
+    width: 100%;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .sheet.flash-mode .flash-count { display: flex; }
+  .flash-count .n { color: var(--ink); font-weight: 600; }
+  .flash-count .right .n { color: var(--good-strong); }
+  .summary-card .action.secondary { margin-top: 10px; }
+
   .flash-mark {
     display: none;
     position: absolute;
@@ -734,7 +749,8 @@
     <div class="summary-grade" id="summaryGrade">A</div>
     <div class="summary-stats" id="summaryStats"></div>
     <p class="summary-missed" id="summaryMissed" hidden></p>
-    <button type="button" class="action primary" id="restartBtn">Start over</button>
+    <button type="button" class="action primary" id="redoBtn" hidden>Redo the ones I missed</button>
+    <button type="button" class="action" id="restartBtn">Start over</button>
   </div>
 </div>
 
@@ -782,6 +798,11 @@
       <button type="button" class="mode-tab active" data-mapdiff="easy">Easy — highlight stays</button>
       <button type="button" class="mode-tab" data-mapdiff="hard">Hard — highlight fades</button>
     </div>
+  </div>
+
+  <div class="flash-count" id="flashCount">
+    <span><span class="n" id="flashLeft">0</span> left</span>
+    <span class="right"><span class="n" id="flashRight">0</span>/<span id="flashMarked">0</span> right</span>
   </div>
 
   <div class="tally">
@@ -1646,6 +1667,9 @@
     const names = [...missed];
     missedEl.hidden = names.length === 0;
     missedEl.textContent = names.length ? "Review: " + names.join(", ") : "";
+    const redoBtn = document.getElementById("redoBtn");
+    redoBtn.hidden = !(isFlash() && correct < total);
+    redoBtn.textContent = "Redo the ones I missed (" + (total - correct) + ")";
     summaryOverlay.hidden = false;
     restartBtn.focus();
   }
@@ -1712,7 +1736,20 @@
   // Re-rating a card replaces its earlier mark, so Back + re-swipe is safe.
   let ratings = new Map();
   const flashMark = document.getElementById("flashMark");
+  // Counts are for the current pass: the cards in the queue, how many are
+  // still unmarked, and how many of the marked ones were right.
+  function updateFlashCount() {
+    let marked = 0, right = 0;
+    order.forEach((i) => {
+      const r = ratings.get(deck[i].name);
+      if (r !== undefined) { marked++; if (r) right++; }
+    });
+    document.getElementById("flashLeft").textContent = order.length - marked;
+    document.getElementById("flashRight").textContent = right;
+    document.getElementById("flashMarked").textContent = marked;
+  }
   function showFlashMark() {
+    updateFlashCount();
     const r = ratings.get(deck[order[pos]].name);
     flashMark.hidden = r === undefined;
     flashMark.textContent = r ? "✓" : "✗";
@@ -1729,6 +1766,24 @@
     updateStats();
     showFlashMark();
   }
+
+  // Second pass over just the cards not marked right; marks already earned
+  // stay, so the final grade covers the whole deck.
+  function redoMissed() {
+    const redo = [];
+    deck.forEach((c, i) => { if (ratings.get(c.name) !== true) redo.push(i); });
+    redo.forEach((i) => ratings.delete(deck[i].name));
+    order = redo;
+    pos = 0;
+    answered = false;
+    attempted = ratings.size;
+    missed = new Set();
+    summaryOverlay.hidden = true;
+    updateStats();
+    setFlipped(false);
+    render();
+  }
+  document.getElementById("redoBtn").addEventListener("click", redoMissed);
 
   let swipeStart = null;
   cardForm.addEventListener("pointerdown", (e) => {

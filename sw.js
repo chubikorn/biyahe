@@ -1,5 +1,5 @@
 // Offline cache: the app (fonts are embedded in index.html) is precached.
-const CACHE = "biyahe-v2";
+const CACHE = "biyahe-v3";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
